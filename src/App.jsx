@@ -1,19 +1,5 @@
 import './App.css'
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  Box,
-  VStack,
-  HStack,
-  Button,
-  Input,
-  Select,
-  Text,
-  Heading,
-  useToast,
-  Container,
-  SimpleGrid,
-} from '@chakra-ui/react';
 import {
   BarChart,
   Bar,
@@ -26,6 +12,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { PlusCircle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 const CATEGORIES = [
   'Housing',
@@ -49,38 +36,33 @@ const COLORS = [
   '#FF6B6B',
 ];
 
-function App() {
+const App = () => {
   const [transactions, setTransactions] = useState(() => {
-    const savedTransactions = localStorage.getItem('transactions');
-    return savedTransactions ? JSON.parse(savedTransactions) : [];
+    const saved = localStorage.getItem('transactions');
+    return saved ? JSON.parse(saved) : [];
   });
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState('Other');
-
-  const toast = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('transactions', JSON.stringify(transactions));
   }, [transactions]);
 
+  useEffect(() => {
+    // Simulate loading state for initial animation
+    setTimeout(() => setIsLoading(false), 1000);
+  }, []);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (!description || !amount) {
-      toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
+    if (!description || !amount) return;
 
     const newTransaction = {
-      id: uuidv4(),
+      id: Math.random().toString(),
       description,
       amount: parseFloat(amount),
       type,
@@ -91,34 +73,25 @@ function App() {
     setTransactions([...transactions, newTransaction]);
     setDescription('');
     setAmount('');
-
-    toast({
-      title: 'Success',
-      description: 'Transaction added successfully',
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
+    setShowForm(false);
   };
 
   const calculateBalance = () => {
     return transactions.reduce((acc, transaction) => {
-      if (transaction.type === 'income') {
-        return acc + transaction.amount;
-      } else {
-        return acc - transaction.amount;
-      }
+      return transaction.type === 'income' 
+        ? acc + transaction.amount 
+        : acc - transaction.amount;
     }, 0);
   };
 
   const getCategoryData = () => {
     const categoryTotals = {};
     transactions
-      .filter((t) => t.type === 'expense')
-      .forEach((transaction) => {
-        categoryTotals[transaction.category] = (categoryTotals[transaction.category] || 0) + transaction.amount;
+      .filter(t => t.type === 'expense')
+      .forEach(transaction => {
+        categoryTotals[transaction.category] = 
+          (categoryTotals[transaction.category] || 0) + transaction.amount;
       });
-
     return Object.entries(categoryTotals).map(([name, value]) => ({
       name,
       value,
@@ -127,8 +100,9 @@ function App() {
 
   const getMonthlyData = () => {
     const monthlyData = {};
-    transactions.forEach((transaction) => {
-      const month = new Date(transaction.date).toLocaleString('default', { month: 'short' });
+    transactions.forEach(transaction => {
+      const month = new Date(transaction.date)
+        .toLocaleString('default', { month: 'short' });
       if (!monthlyData[month]) {
         monthlyData[month] = { income: 0, expense: 0 };
       }
@@ -138,73 +112,117 @@ function App() {
         monthlyData[month].expense += transaction.amount;
       }
     });
-
     return Object.entries(monthlyData).map(([month, data]) => ({
       month,
       ...data,
     }));
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <Container maxW="container.xl" py={5}>
-      <VStack spacing={6}>
-        <Heading>Expense Tracker</Heading>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6 animate-fadeIn">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center animate-slideDown">
+          <h1 className="text-3xl font-bold text-gray-800">Expense Tracker</h1>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95"
+          >
+            <PlusCircle className="w-5 h-5 animate-spin-slow" />
+            <span>Add Transaction</span>
+          </button>
+        </div>
 
-        <Box p={5} shadow="md" borderWidth="1px" w="100%">
-          <form onSubmit={handleSubmit}>
-            <SimpleGrid columns={[1, null, 2]} spacing={4}>
-              <Input
-                placeholder="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <Input
-                placeholder="Amount"
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <Select value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-              </Select>
-              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </Select>
-              <Button colorScheme="blue" type="submit" gridColumn={[null, null, "span 2"]}>
+        {/* Form */}
+        <div className={`transform transition-all duration-300 ${
+          showForm 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 -translate-y-4 pointer-events-none h-0'
+        }`}>
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-blue-300"
+                  placeholder="Description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+                <input
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-blue-300"
+                  placeholder="Amount"
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-blue-300"
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-blue-300"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95"
+              >
                 Add Transaction
-              </Button>
-            </SimpleGrid>
-          </form>
-        </Box>
+              </button>
+            </form>
+          </div>
+        </div>
 
-        <Box p={5} shadow="md" borderWidth="1px" w="100%">
-          <Heading size="md" mb={4}>Balance: ${calculateBalance().toFixed(2)}</Heading>
-        </Box>
+        {/* Balance Card */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl shadow-lg p-6 transform transition-all duration-300 hover:scale-105 animate-slideUp">
+          <div className="text-white">
+            <p className="text-lg opacity-90">Current Balance</p>
+            <h2 className="text-4xl font-bold animate-pulse">
+              ${calculateBalance().toFixed(2)}
+            </h2>
+          </div>
+        </div>
 
-        <SimpleGrid columns={[1, null, 2]} spacing={6} w="100%">
-          <Box p={5} shadow="md" borderWidth="1px">
-            <Heading size="md" mb={4}>Monthly Overview</Heading>
-            <Box overflow="auto">
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Monthly Overview */}
+          <div className="bg-white rounded-xl shadow-lg p-6 transform transition-all duration-300 hover:shadow-xl animate-slideLeft">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">Monthly Overview</h3>
+            <div className="overflow-x-auto">
               <BarChart width={500} height={300} data={getMonthlyData()}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="income" fill="#82ca9d" name="Income" />
-                <Bar dataKey="expense" fill="#ff7675" name="Expense" />
+                <Bar dataKey="income" fill="#4ade80" name="Income" />
+                <Bar dataKey="expense" fill="#f87171" name="Expense" />
               </BarChart>
-            </Box>
-          </Box>
+            </div>
+          </div>
 
-          <Box p={5} shadow="md" borderWidth="1px">
-            <Heading size="md" mb={4}>Expense by Category</Heading>
-            <Box overflow="auto">
+          {/* Category Distribution */}
+          <div className="bg-white rounded-xl shadow-lg p-6 transform transition-all duration-300 hover:shadow-xl animate-slideRight">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">Expense by Category</h3>
+            <div className="overflow-x-auto">
               <PieChart width={500} height={300}>
                 <Pie
                   data={getCategoryData()}
@@ -222,40 +240,45 @@ function App() {
                 <Tooltip />
                 <Legend />
               </PieChart>
-            </Box>
-          </Box>
-        </SimpleGrid>
+            </div>
+          </div>
+        </div>
 
-        <Box p={5} shadow="md" borderWidth="1px" w="100%">
-          <Heading size="md" mb={4}>Recent Transactions</Heading>
-          <VStack align="stretch" spacing={3}>
-            {transactions.slice().reverse().map((transaction) => (
-              <HStack
+        {/* Transactions List */}
+        <div className="bg-white rounded-xl shadow-lg p-6 animate-slideUp">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">Recent Transactions</h3>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {transactions.slice().reverse().map((transaction, index) => (
+              <div
                 key={transaction.id}
-                p={3}
-                shadow="sm"
-                borderWidth="1px"
-                justify="space-between"
+                className="flex justify-between items-center p-4 rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-300 hover:scale-102 animate-fadeIn"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
-                <VStack align="start" spacing={0}>
-                  <Text fontWeight="bold">{transaction.description}</Text>
-                  <Text fontSize="sm" color="gray.500">
-                    {transaction.category} • {new Date(transaction.date).toLocaleDateString()}
-                  </Text>
-                </VStack>
-                <Text
-                  fontWeight="bold"
-                  color={transaction.type === 'income' ? 'green.500' : 'red.500'}
-                >
+                <div className="flex items-center gap-3">
+                  {transaction.type === 'income' ? (
+                    <ArrowUpCircle className="w-6 h-6 text-green-500 animate-bounce" />
+                  ) : (
+                    <ArrowDownCircle className="w-6 h-6 text-red-500 animate-bounce" />
+                  )}
+                  <div>
+                    <p className="font-semibold text-gray-800">{transaction.description}</p>
+                    <p className="text-sm text-gray-500">
+                      {transaction.category} • {new Date(transaction.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <p className={`font-bold ${
+                  transaction.type === 'income' ? 'text-green-500' : 'text-red-500'
+                }`}>
                   {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
-                </Text>
-              </HStack>
+                </p>
+              </div>
             ))}
-          </VStack>
-        </Box>
-      </VStack>
-    </Container>
+          </div>
+        </div>
+      </div>
+    </div>
   );
-}
+};
 
 export default App;
